@@ -316,74 +316,6 @@
           transform: translateY(0);
         }
       }
-
-      /* AI Suggestions Styles */
-      .ai-suggestions {
-        background: #f8fafc;
-        border: 1px solid #e2e8f0;
-        border-radius: 8px;
-        padding: 1rem;
-        margin-top: 1rem;
-        display: none;
-      }
-
-      .ai-suggestions.visible {
-        display: block;
-        animation: fadeIn 0.3s ease-out;
-      }
-
-      .ai-suggestions h3 {
-        color: var(--gray-700);
-        font-size: 1rem;
-        margin-bottom: 0.5rem;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-      }
-
-      .ai-suggestions p {
-        color: var(--gray-700);
-        font-size: 0.9rem;
-        line-height: 1.5;
-      }
-
-      .ai-suggestions .suggestion-item {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        margin-top: 0.5rem;
-        padding: 0.5rem;
-        background: white;
-        border-radius: 6px;
-        border: 1px solid #e2e8f0;
-      }
-
-      .ai-suggestions .suggestion-item:hover {
-        background: #f1f5f9;
-        cursor: pointer;
-      }
-
-      .ai-suggestions .suggestion-item.selected {
-        background: #dbeafe;
-        border-color: var(--primary);
-      }
-
-      .ai-loading {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        color: var(--gray-700);
-        font-size: 0.9rem;
-      }
-
-      .ai-loading .spinner {
-        width: 16px;
-        height: 16px;
-        border: 2px solid var(--gray-200);
-        border-top: 2px solid var(--primary);
-        border-radius: 50%;
-        animation: spin 1s linear infinite;
-      }
     </style>
   </head>
   <body>
@@ -410,7 +342,7 @@
       <div class="patient-info">
         <div class="form-group">
           <label>Patient Type</label>
-          <select id="patient" onchange="getAISuggestions()">
+          <select id="patient">
             <option value="child">Child</option>
             <option value="adult" selected>Adult</option>
             <option value="elderly">Elderly</option>
@@ -438,17 +370,6 @@
       <div class="form-group">
         <label>Symptoms</label>
         <input type="text" placeholder="e.g. cough, fever (just for show)" />
-      </div>
-
-      <div class="ai-suggestions" id="aiSuggestions">
-        <h3>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16z" />
-            <path d="M12 6v6l4 2" />
-          </svg>
-          AI Recommendations
-        </h3>
-        <div id="aiSuggestionsContent"></div>
       </div>
 
       <div class="button-group">
@@ -522,7 +443,7 @@
         const notification = document.createElement("div");
         notification.className = `notification ${type}`;
 
-        const icon = type === "success" ? "" : "";
+        const icon = type === "success" ? "✅" : "❌";
 
         notification.innerHTML = `
           <span class="notification-icon">${icon}</span>
@@ -542,138 +463,6 @@
           }, 300);
         }, 10000);
       }
-
-      // Gemini API Integration
-      const GEMINI_API_KEY = "AIzaSyBhXfHEDoZw41AmFmFCUFnQEOOimQiS_s8";
-      const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + GEMINI_API_KEY;
-
-      async function getAISuggestions() {
-        const patientType = document.getElementById("patient").value;
-        const suggestionsDiv = document.getElementById("aiSuggestions");
-        const suggestionsContent = document.getElementById("aiSuggestionsContent");
-
-        suggestionsDiv.classList.add("visible");
-        suggestionsContent.innerHTML = `
-          <div class="ai-loading">
-            <div class="spinner"></div>
-            Getting AI recommendations...
-          </div>
-        `;
-
-        try {
-          const prompt = `You are a medical AI assistant. For a ${patientType} patient, provide ventilator settings in the following EXACT JSON format, with no additional text:
-          {
-            "breathingRate": 12,
-            "recommendations": [
-              "Set breathing rate to 12-15 BPM for optimal ventilation",
-              "Monitor oxygen saturation levels continuously",
-              "Check for signs of respiratory distress",
-              "Adjust settings based on patient response"
-            ]
-          }
-          
-          Important: Respond ONLY with the JSON object, no other text. The breathingRate should be a number between 5 and 40.`;
-
-          const response = await fetch(GEMINI_API_URL, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              contents: [
-                {
-                  parts: [
-                    {
-                      text: prompt,
-                    },
-                  ],
-                },
-              ],
-            }),
-          });
-
-          if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(`HTTP error! status: ${response.status}, message: ${JSON.stringify(errorData)}`);
-          }
-
-          const data = await response.json();
-          console.log("Gemini API Response:", data); // Debug log
-
-          if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
-            throw new Error("Invalid response structure from Gemini API");
-          }
-
-          const responseText = data.candidates[0].content.parts[0].text;
-          console.log("Response Text:", responseText); // Debug log
-
-          // Clean the response text to ensure it's valid JSON
-          const cleanedText = responseText.replace(/```json\n?|\n?```/g, "").trim();
-
-          // Try to parse the response as JSON
-          let suggestions;
-          try {
-            suggestions = JSON.parse(cleanedText);
-
-            // Validate the suggestions object
-            if (typeof suggestions.breathingRate !== "number" || !Array.isArray(suggestions.recommendations)) {
-              throw new Error("Invalid response format");
-            }
-
-            // Ensure breathing rate is within valid range
-            suggestions.breathingRate = Math.min(Math.max(suggestions.breathingRate, 5), 40);
-          } catch (e) {
-            console.error("JSON parsing error:", e);
-            // Fallback to default values if JSON parsing fails
-            suggestions = {
-              breathingRate: 12,
-              recommendations: ["Default breathing rate set to 12 BPM", "Please check patient's condition", "Monitor vital signs regularly"],
-            };
-          }
-
-          // Update the BPM input with the suggested value
-          document.getElementById("bpm").value = suggestions.breathingRate;
-
-          // Display recommendations
-          suggestionsContent.innerHTML = suggestions.recommendations
-            .map(
-              (rec) => `
-            <div class="suggestion-item" onclick="applySuggestion('${rec}')">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M9 12l2 2 4-4"/>
-              </svg>
-              ${rec}
-            </div>
-          `
-            )
-            .join("");
-        } catch (error) {
-          console.error("Full error:", error); // Debug log
-          suggestionsContent.innerHTML = `
-            <p style="color: var(--danger);">
-              Failed to get AI recommendations: ${error.message}
-            </p>
-          `;
-        }
-      }
-
-      function applySuggestion(suggestion) {
-        // Extract numbers from the suggestion if they exist
-        const numbers = suggestion.match(/\d+/g);
-        if (numbers) {
-          document.getElementById("bpm").value = numbers[0];
-        }
-
-        // Show notification
-        showNotification("Suggestion Applied", suggestion);
-      }
-
-      // Modify startVentilator to include AI suggestions
-      const originalStartVentilator = startVentilator;
-      startVentilator = function () {
-        getAISuggestions();
-        originalStartVentilator();
-      };
 
       function startVentilator() {
         const ip = document.getElementById("ip").value.trim();
