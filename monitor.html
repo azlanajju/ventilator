@@ -200,6 +200,7 @@
         transform: translateX(120%);
         transition: transform 0.3s ease-out;
         animation: slideIn 0.3s forwards;
+        position: relative;
       }
 
       .notification.success {
@@ -226,6 +227,31 @@
       .notification-message {
         font-size: 0.9rem;
         color: var(--gray-700);
+      }
+
+      .notification .close-button {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--gray-700);
+        opacity: 0.6;
+        transition: opacity 0.2s;
+      }
+
+      .notification .close-button:hover {
+        opacity: 1;
+      }
+
+      .notification .close-button svg {
+        width: 16px;
+        height: 16px;
       }
 
       @keyframes slideIn {
@@ -437,7 +463,7 @@
 
       <div class="form-group">
         <label>Symptoms</label>
-        <input type="text" placeholder="e.g. cough, fever (just for show)" />
+        <input type="text" id="symptoms" placeholder="e.g. cough, fever (just for show)" />
       </div>
 
       <div class="ai-suggestions" id="aiSuggestions">
@@ -537,17 +563,31 @@
             <div class="notification-title">${title}</div>
             <div class="notification-message">${message}</div>
           </div>
+          <button class="close-button" onclick="this.parentElement.classList.add('hide')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+          </button>
         `;
 
         container.appendChild(notification);
 
-        // Remove notification after 5 seconds
-        setTimeout(() => {
-          notification.classList.add("hide");
-          setTimeout(() => {
-            container.removeChild(notification);
-          }, 300);
+        // Remove notification after 10 seconds if not manually closed
+        const timeout = setTimeout(() => {
+          if (notification.parentElement) {
+            notification.classList.add("hide");
+            setTimeout(() => {
+              if (notification.parentElement) {
+                container.removeChild(notification);
+              }
+            }, 300);
+          }
         }, 10000);
+
+        // Clear timeout if notification is manually closed
+        notification.querySelector('.close-button').addEventListener('click', () => {
+          clearTimeout(timeout);
+        });
       }
 
       // Gemini API Integration
@@ -557,6 +597,7 @@
       async function getAISuggestions() {
         const patientType = document.getElementById("patient").value;
         const bpm = document.getElementById("bpm").value;
+        const symptoms = document.getElementById("symptoms")?.value || '';
         const suggestionsDiv = document.getElementById("aiSuggestions");
         const suggestionsContent = document.getElementById("aiSuggestionsContent");
 
@@ -569,18 +610,19 @@
         `;
 
         try {
-          const prompt = `You are a medical AI assistant specializing in ventilator settings. For a ${patientType} patient with current breathing rate of ${bpm} BPM, provide ventilator settings and recommendations in the following EXACT JSON format, with no additional text:
+          const prompt = `You are a medical AI assistant specializing in ventilator settings. For a ${patientType} patient with current breathing rate of ${bpm} BPM${symptoms ? ` and symptoms: ${symptoms}` : ''}, provide ventilator settings and recommendations in the following EXACT JSON format, with no additional text:
           {
             "breathingRate": number,
             "recommendations": [
-              "Specific recommendation based on patient type and current settings",
+              "Specific recommendation based on patient type, symptoms and current settings",
               "Monitoring advice",
               "Warning signs to watch for",
               "Adjustment suggestions if needed"
             ],
             "patientType": "${patientType}",
             "currentSettings": {
-              "bpm": ${bpm}
+              "bpm": ${bpm}${symptoms ? `,
+              "symptoms": "${symptoms}"` : ''}
             }
           }
           
@@ -590,8 +632,10 @@
           - For children, recommend lower breathing rates (5-15 BPM)
           - For adults, recommend moderate breathing rates (12-20 BPM)
           - For elderly, recommend slightly lower rates (10-18 BPM)
-          - Include specific warnings and monitoring advice based on patient type
-          - Make recommendations dynamic based on current BPM setting`;
+          - Include specific warnings and monitoring advice based on patient type and symptoms
+          - Make recommendations dynamic based on current BPM setting and reported symptoms
+          - If symptoms are severe, recommend more frequent monitoring
+          - Consider adjusting breathing rate based on specific symptoms`;
 
           const response = await fetch(GEMINI_API_URL, {
             method: "POST",
@@ -657,6 +701,17 @@
               default:
                 minBPM = 5;
                 maxBPM = 40;
+            }
+
+            // Adjust BPM range based on symptoms if present
+            if (symptoms) {
+              const severeSymptoms = symptoms.toLowerCase().includes('severe') || 
+                                   symptoms.toLowerCase().includes('critical') ||
+                                   symptoms.toLowerCase().includes('acute');
+              if (severeSymptoms) {
+                minBPM = Math.max(minBPM - 2, 5);
+                maxBPM = Math.min(maxBPM + 2, 40);
+              }
             }
 
             suggestions.breathingRate = Math.min(Math.max(suggestions.breathingRate, minBPM), maxBPM);
