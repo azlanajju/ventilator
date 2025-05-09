@@ -556,6 +556,7 @@
 
       async function getAISuggestions() {
         const patientType = document.getElementById("patient").value;
+        const bpm = document.getElementById("bpm").value;
         const suggestionsDiv = document.getElementById("aiSuggestions");
         const suggestionsContent = document.getElementById("aiSuggestionsContent");
 
@@ -568,18 +569,29 @@
         `;
 
         try {
-          const prompt = `You are a medical AI assistant. For a ${patientType} patient, provide ventilator settings in the following EXACT JSON format, with no additional text:
+          const prompt = `You are a medical AI assistant specializing in ventilator settings. For a ${patientType} patient with current breathing rate of ${bpm} BPM, provide ventilator settings and recommendations in the following EXACT JSON format, with no additional text:
           {
-            "breathingRate": 12,
+            "breathingRate": number,
             "recommendations": [
-              "Set breathing rate to 12-15 BPM for optimal ventilation",
-              "Monitor oxygen saturation levels continuously",
-              "Check for signs of respiratory distress",
-              "Adjust settings based on patient response"
-            ]
+              "Specific recommendation based on patient type and current settings",
+              "Monitoring advice",
+              "Warning signs to watch for",
+              "Adjustment suggestions if needed"
+            ],
+            "patientType": "${patientType}",
+            "currentSettings": {
+              "bpm": ${bpm}
+            }
           }
           
-          Important: Respond ONLY with the JSON object, no other text. The breathingRate should be a number between 5 and 40.`;
+          Important: 
+          - Respond ONLY with the JSON object, no other text
+          - The breathingRate should be a number between 5 and 40
+          - For children, recommend lower breathing rates (5-15 BPM)
+          - For adults, recommend moderate breathing rates (12-20 BPM)
+          - For elderly, recommend slightly lower rates (10-18 BPM)
+          - Include specific warnings and monitoring advice based on patient type
+          - Make recommendations dynamic based on current BPM setting`;
 
           const response = await fetch(GEMINI_API_URL, {
             method: "POST",
@@ -605,14 +617,14 @@
           }
 
           const data = await response.json();
-          console.log("Gemini API Response:", data); // Debug log
+          console.log("Gemini API Response:", data);
 
           if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
             throw new Error("Invalid response structure from Gemini API");
           }
 
           const responseText = data.candidates[0].content.parts[0].text;
-          console.log("Response Text:", responseText); // Debug log
+          console.log("Response Text:", responseText);
 
           // Clean the response text to ensure it's valid JSON
           const cleanedText = responseText.replace(/```json\n?|\n?```/g, "").trim();
@@ -627,35 +639,73 @@
               throw new Error("Invalid response format");
             }
 
-            // Ensure breathing rate is within valid range
-            suggestions.breathingRate = Math.min(Math.max(suggestions.breathingRate, 5), 40);
+            // Ensure breathing rate is within valid range based on patient type
+            let minBPM, maxBPM;
+            switch (patientType) {
+              case "child":
+                minBPM = 5;
+                maxBPM = 15;
+                break;
+              case "adult":
+                minBPM = 12;
+                maxBPM = 20;
+                break;
+              case "elderly":
+                minBPM = 10;
+                maxBPM = 18;
+                break;
+              default:
+                minBPM = 5;
+                maxBPM = 40;
+            }
+
+            suggestions.breathingRate = Math.min(Math.max(suggestions.breathingRate, minBPM), maxBPM);
+
+            // Update the BPM input with the suggested value
+            document.getElementById("bpm").value = suggestions.breathingRate;
+
+            // Display recommendations with icons based on content
+            suggestionsContent.innerHTML = suggestions.recommendations
+              .map((rec) => {
+                let icon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M9 12l2 2 4-4"/>
+                </svg>`;
+
+                // Change icon based on recommendation content
+                if (rec.toLowerCase().includes("warning") || rec.toLowerCase().includes("caution")) {
+                  icon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                  </svg>`;
+                } else if (rec.toLowerCase().includes("monitor") || rec.toLowerCase().includes("check")) {
+                  icon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    <path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                  </svg>`;
+                }
+
+                return `
+                  <div class="suggestion-item" onclick="applySuggestion('${rec}')">
+                    ${icon}
+                    ${rec}
+                  </div>
+                `;
+              })
+              .join("");
           } catch (e) {
             console.error("JSON parsing error:", e);
             // Fallback to default values if JSON parsing fails
             suggestions = {
               breathingRate: 12,
-              recommendations: ["Default breathing rate set to 12 BPM", "Please check patient's condition", "Monitor vital signs regularly"],
+              recommendations: [
+                "Default breathing rate set to 12 BPM",
+                "Please check patient's condition",
+                "Monitor vital signs regularly",
+                "Adjust settings based on patient response"
+              ],
             };
           }
-
-          // Update the BPM input with the suggested value
-          document.getElementById("bpm").value = suggestions.breathingRate;
-
-          // Display recommendations
-          suggestionsContent.innerHTML = suggestions.recommendations
-            .map(
-              (rec) => `
-            <div class="suggestion-item" onclick="applySuggestion('${rec}')">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M9 12l2 2 4-4"/>
-              </svg>
-              ${rec}
-            </div>
-          `
-            )
-            .join("");
         } catch (error) {
-          console.error("Full error:", error); // Debug log
+          console.error("Full error:", error);
           suggestionsContent.innerHTML = `
             <p style="color: var(--danger);">
               Failed to get AI recommendations: ${error.message}
