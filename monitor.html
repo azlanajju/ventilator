@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>DIY Ventilator Control</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        --primary: #2563eb;
+        --primary-dark: #1d4ed8;
+        --danger: #dc2626;
+        --danger-dark: #b91c1c;
+        --success: #059669;
+        --gray-100: #f3f4f6;
+        --gray-200: #e5e7eb;
+        --gray-700: #374151;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: "Poppins", sans-serif;
+        background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+      }
+
+      .container {
+        background: white;
+        max-width: 600px;
+        width: 100%;
+        padding: 2rem;
+        border-radius: 16px;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+        animation: fadeIn 0.5s ease-out;
+      }
+
+      .header {
+        text-align: center;
+        margin-bottom: 2rem;
+      }
+
+      .header h2 {
+        color: var(--gray-700);
+        font-size: 1.8rem;
+        margin-bottom: 0.5rem;
+      }
+
+      .header p {
+        color: #6b7280;
+        font-size: 0.9rem;
+      }
+
+      .form-group {
+        margin-bottom: 1.5rem;
+      }
+
+      label {
+        display: block;
+        color: var(--gray-700);
+        font-weight: 500;
+        margin-bottom: 0.5rem;
+        font-size: 0.9rem;
+      }
+
+      select,
+      input {
+        width: 100%;
+        padding: 0.75rem;
+        border: 2px solid var(--gray-200);
+        border-radius: 8px;
+        font-family: inherit;
+        font-size: 0.95rem;
+        transition: all 0.2s;
+      }
+
+      select:focus,
+      input:focus {
+        outline: none;
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+      }
+
+      .button-group {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+        margin-top: 2rem;
+      }
+
+      button {
+        padding: 0.875rem;
+        border: none;
+        border-radius: 8px;
+        font-family: inherit;
+        font-weight: 500;
+        font-size: 1rem;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+      }
+
+      button.start {
+        background-color: var(--primary);
+        color: white;
+      }
+
+      button.start:hover {
+        background-color: var(--primary-dark);
+      }
+
+      button.stop {
+        background-color: var(--danger);
+        color: white;
+      }
+
+      button.stop:hover {
+        background-color: var(--danger-dark);
+      }
+
+      #status {
+        margin-top: 1.5rem;
+        padding: 1rem;
+        border-radius: 8px;
+        text-align: center;
+        font-weight: 500;
+        display: none;
+      }
+
+      #status.success {
+        display: block;
+        background-color: #ecfdf5;
+        color: var(--success);
+        border: 1px solid #a7f3d0;
+      }
+
+      #status.error {
+        display: block;
+        background-color: #fef2f2;
+        color: var(--danger);
+        border: 1px solid #fecaca;
+      }
+
+      .patient-info {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+      }
+
+      .status-indicator {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-top: 1rem;
+        padding: 0.75rem;
+        border-radius: 8px;
+        background-color: var(--gray-100);
+      }
+
+      .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background-color: #9ca3af;
+      }
+
+      .status-dot.active {
+        background-color: var(--success);
+        box-shadow: 0 0 0 4px rgba(5, 150, 105, 0.1);
+      }
+
+      /* Floating Notification Styles */
+      .notification-container {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 1000;
+      }
+
+      .notification {
+        background: white;
+        padding: 1rem 1.5rem;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        min-width: 300px;
+        transform: translateX(120%);
+        transition: transform 0.3s ease-out;
+        animation: slideIn 0.3s forwards;
+      }
+
+      .notification.success {
+        border-left: 4px solid var(--success);
+      }
+
+      .notification.error {
+        border-left: 4px solid var(--danger);
+      }
+
+      .notification-icon {
+        font-size: 1.25rem;
+      }
+
+      .notification-content {
+        flex: 1;
+      }
+
+      .notification-title {
+        font-weight: 600;
+        margin-bottom: 0.25rem;
+      }
+
+      .notification-message {
+        font-size: 0.9rem;
+        color: var(--gray-700);
+      }
+
+      @keyframes slideIn {
+        from {
+          transform: translateX(120%);
+        }
+        to {
+          transform: translateX(0);
+        }
+      }
+
+      @keyframes slideOut {
+        from {
+          transform: translateX(0);
+        }
+        to {
+          transform: translateX(120%);
+        }
+      }
+
+      .notification.hide {
+        animation: slideOut 0.3s forwards;
+      }
+
+      /* Loader Styles */
+      #globalLoader {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(255, 255, 255, 0.95);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
+        opacity: 1;
+        visibility: visible;
+        transition: opacity 0.3s ease-out, visibility 0.3s ease-out;
+      }
+
+      #globalLoader.hide {
+        opacity: 0;
+        visibility: hidden;
+      }
+
+      .loader-content {
+        text-align: center;
+        background: white;
+        padding: 2rem;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      }
+
+      .loader-spinner {
+        width: 50px;
+        height: 50px;
+        border: 4px solid var(--gray-200);
+        border-top: 4px solid var(--primary);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 1rem;
+      }
+
+      .loader-text {
+        color: var(--gray-700);
+        font-weight: 500;
+        font-size: 1rem;
+      }
+
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+
+      /* Add fade-in animation for the main content */
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      /* AI Suggestions Styles */
+      .ai-suggestions {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-top: 1rem;
+        display: none;
+      }
+
+      .ai-suggestions.visible {
+        display: block;
+        animation: fadeIn 0.3s ease-out;
+      }
+
+      .ai-suggestions h3 {
+        color: var(--gray-700);
+        font-size: 1rem;
+        margin-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .ai-suggestions p {
+        color: var(--gray-700);
+        font-size: 0.9rem;
+        line-height: 1.5;
+      }
+
+      .ai-suggestions .suggestion-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-top: 0.5rem;
+        padding: 0.5rem;
+        background: white;
+        border-radius: 6px;
+        border: 1px solid #e2e8f0;
+      }
+
+      .ai-suggestions .suggestion-item:hover {
+        background: #f1f5f9;
+        cursor: pointer;
+      }
+
+      .ai-suggestions .suggestion-item.selected {
+        background: #dbeafe;
+        border-color: var(--primary);
+      }
+
+      .ai-loading {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: var(--gray-700);
+        font-size: 0.9rem;
+      }
+
+      .ai-loading .spinner {
+        width: 16px;
+        height: 16px;
+        border: 2px solid var(--gray-200);
+        border-top: 2px solid var(--primary);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Loader -->
+    <div id="globalLoader">
+      <div class="loader-content">
+        <div class="loader-spinner"></div>
+        <div class="loader-text">Loading...</div>
+      </div>
+    </div>
+
+    <div class="notification-container" id="notificationContainer"></div>
+    <div class="container">
+      <div class="header">
+        <h2>Ventilator Control System</h2>
+        <p>Monitor and control patient ventilation parameters</p>
+      </div>
+
+      <div class="form-group">
+        <label>ESP IP Address</label>
+        <input type="text" id="ip" placeholder="e.g. 192.168.1.50" required />
+      </div>
+
+      <div class="patient-info">
+        <div class="form-group">
+          <label>Patient Type</label>
+          <select id="patient" onchange="getAISuggestions()">
+            <option value="child">Child</option>
+            <option value="adult" selected>Adult</option>
+            <option value="elderly">Elderly</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Blood Group</label>
+          <select>
+            <option>A+</option>
+            <option>A-</option>
+            <option>B+</option>
+            <option>O+</option>
+            <option>O-</option>
+            <option>AB+</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Breathing Rate (breaths per minute)</label>
+        <input type="number" id="bpm" value="12" min="5" max="40" />
+      </div>
+
+      <div class="form-group">
+        <label>Symptoms</label>
+        <input type="text" placeholder="e.g. cough, fever (just for show)" />
+      </div>
+
+      <div class="ai-suggestions" id="aiSuggestions">
+        <h3>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16z" />
+            <path d="M12 6v6l4 2" />
+          </svg>
+          AI Recommendations
+        </h3>
+        <div id="aiSuggestionsContent"></div>
+      </div>
+
+      <div class="button-group">
+        <button class="start" onclick="startVentilator()">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M5 3l14 9-14 9V3z" />
+          </svg>
+          Start Ventilation
+        </button>
+        <button class="stop" onclick="stopVentilator()">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="6" y="6" width="12" height="12" />
+          </svg>
+          Stop
+        </button>
+      </div>
+
+      <div class="status-indicator">
+        <div class="status-dot"></div>
+        <span>System Status: <span id="statusText">Ready</span></span>
+      </div>
+
+      <div id="status"></div>
+    </div>
+
+    <script>
+      // Show loader immediately when page starts loading
+      document.addEventListener("DOMContentLoaded", () => {
+        const loader = document.getElementById("globalLoader");
+        loader.classList.remove("hide");
+
+        // Get IP from URL parameter and set it in the input field
+        const urlParams = new URLSearchParams(window.location.search);
+        const ip = urlParams.get('ip');
+        if (ip) {
+          document.getElementById('ip').value = ip;
+        }
+      });
+
+      // Hide loader after page fully loads
+      window.addEventListener("load", () => {
+        const loader = document.getElementById("globalLoader");
+        loader.classList.add("hide");
+      });
+
+      document.querySelectorAll("a[href]:not([target])").forEach((link) => {
+        link.addEventListener("click", function (e) {
+          const href = this.getAttribute("href");
+          if (href && !href.startsWith("#") && !href.startsWith("javascript:")) {
+            document.getElementById("globalLoader").classList.remove("hide");
+          }
+        });
+      });
+
+      document.querySelectorAll("form").forEach((form) => {
+        form.addEventListener("submit", () => {
+          document.getElementById("globalLoader").classList.remove("hide");
+        });
+      });
+
+      window.addEventListener("beforeunload", () => {
+        document.getElementById("globalLoader").classList.remove("hide");
+      });
+
+      // Show loader during ventilator operations
+      function showLoader() {
+        const loader = document.getElementById("globalLoader");
+        loader.classList.remove("hide");
+      }
+
+      function hideLoader() {
+        const loader = document.getElementById("globalLoader");
+        loader.classList.add("hide");
+      }
+
+      function showNotification(title, message, type = "success") {
+        const container = document.getElementById("notificationContainer");
+        const notification = document.createElement("div");
+        notification.className = `notification ${type}`;
+
+        const icon = type === "success" ? "" : "";
+
+        notification.innerHTML = `
+          <span class="notification-icon">${icon}</span>
+          <div class="notification-content">
+            <div class="notification-title">${title}</div>
+            <div class="notification-message">${message}</div>
+          </div>
+        `;
+
+        container.appendChild(notification);
+
+        // Remove notification after 5 seconds
+        setTimeout(() => {
+          notification.classList.add("hide");
+          setTimeout(() => {
+            container.removeChild(notification);
+          }, 300);
+        }, 10000);
+      }
+
+      // Gemini API Integration
+      const GEMINI_API_KEY = "AIzaSyBhXfHEDoZw41AmFmFCUFnQEOOimQiS_s8";
+      const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + GEMINI_API_KEY;
+
+      async function getAISuggestions() {
+        const patientType = document.getElementById("patient").value;
+        const suggestionsDiv = document.getElementById("aiSuggestions");
+        const suggestionsContent = document.getElementById("aiSuggestionsContent");
+
+        suggestionsDiv.classList.add("visible");
+        suggestionsContent.innerHTML = `
+          <div class="ai-loading">
+            <div class="spinner"></div>
+            Getting AI recommendations...
+          </div>
+        `;
+
+        try {
+          const prompt = `You are a medical AI assistant. For a ${patientType} patient, provide ventilator settings in the following EXACT JSON format, with no additional text:
+          {
+            "breathingRate": 12,
+            "recommendations": [
+              "Set breathing rate to 12-15 BPM for optimal ventilation",
+              "Monitor oxygen saturation levels continuously",
+              "Check for signs of respiratory distress",
+              "Adjust settings based on patient response"
+            ]
+          }
+          
+          Important: Respond ONLY with the JSON object, no other text. The breathingRate should be a number between 5 and 40.`;
+
+          const response = await fetch(GEMINI_API_URL, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              contents: [
+                {
+                  parts: [
+                    {
+                      text: prompt,
+                    },
+                  ],
+                },
+              ],
+            }),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(`HTTP error! status: ${response.status}, message: ${JSON.stringify(errorData)}`);
+          }
+
+          const data = await response.json();
+          console.log("Gemini API Response:", data); // Debug log
+
+          if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+            throw new Error("Invalid response structure from Gemini API");
+          }
+
+          const responseText = data.candidates[0].content.parts[0].text;
+          console.log("Response Text:", responseText); // Debug log
+
+          // Clean the response text to ensure it's valid JSON
+          const cleanedText = responseText.replace(/```json\n?|\n?```/g, "").trim();
+
+          // Try to parse the response as JSON
+          let suggestions;
+          try {
+            suggestions = JSON.parse(cleanedText);
+
+            // Validate the suggestions object
+            if (typeof suggestions.breathingRate !== "number" || !Array.isArray(suggestions.recommendations)) {
+              throw new Error("Invalid response format");
+            }
+
+            // Ensure breathing rate is within valid range
+            suggestions.breathingRate = Math.min(Math.max(suggestions.breathingRate, 5), 40);
+          } catch (e) {
+            console.error("JSON parsing error:", e);
+            // Fallback to default values if JSON parsing fails
+            suggestions = {
+              breathingRate: 12,
+              recommendations: ["Default breathing rate set to 12 BPM", "Please check patient's condition", "Monitor vital signs regularly"],
+            };
+          }
+
+          // Update the BPM input with the suggested value
+          document.getElementById("bpm").value = suggestions.breathingRate;
+
+          // Display recommendations
+          suggestionsContent.innerHTML = suggestions.recommendations
+            .map(
+              (rec) => `
+            <div class="suggestion-item" onclick="applySuggestion('${rec}')">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 12l2 2 4-4"/>
+              </svg>
+              ${rec}
+            </div>
+          `
+            )
+            .join("");
+        } catch (error) {
+          console.error("Full error:", error); // Debug log
+          suggestionsContent.innerHTML = `
+            <p style="color: var(--danger);">
+              Failed to get AI recommendations: ${error.message}
+            </p>
+          `;
+        }
+      }
+
+      function applySuggestion(suggestion) {
+        // Extract numbers from the suggestion if they exist
+        const numbers = suggestion.match(/\d+/g);
+        if (numbers) {
+          document.getElementById("bpm").value = numbers[0];
+        }
+
+        // Show notification
+        showNotification("Suggestion Applied", suggestion);
+      }
+
+      // Modify startVentilator to include AI suggestions
+      const originalStartVentilator = startVentilator;
+      startVentilator = function () {
+        getAISuggestions();
+        originalStartVentilator();
+      };
+
+      function startVentilator() {
+        const ip = document.getElementById("ip").value.trim();
+        const patient = document.getElementById("patient").value;
+        const bpm = parseInt(document.getElementById("bpm").value);
+        const statusDot = document.querySelector(".status-dot");
+        const statusText = document.getElementById("statusText");
+
+        if (!ip || !bpm) {
+          showNotification("Error", "Please enter IP and BPM", "error");
+          return;
+        }
+
+        showLoader();
+        let angle;
+        switch (patient) {
+          case "child":
+            angle = 40;
+            break;
+          case "adult":
+            angle = 70;
+            break;
+          case "elderly":
+            angle = 60;
+            break;
+        }
+
+        const interval = Math.floor((60 / bpm) * 1000);
+
+        statusDot.classList.add("active");
+        statusText.innerText = "Running";
+
+        const url = `http://${ip}/start?angle=${angle}&interval=${interval}`;
+        fetch(url)
+          .then((res) => res.text())
+          .then((data) => {
+            hideLoader();
+            showNotification("Success", data);
+          })
+          .catch((err) => {
+            hideLoader();
+            showNotification("Error", err, "error");
+            statusDot.classList.remove("active");
+            statusText.innerText = "Error";
+          });
+      }
+
+      function stopVentilator() {
+        const ip = document.getElementById("ip").value.trim();
+        const statusDot = document.querySelector(".status-dot");
+        const statusText = document.getElementById("statusText");
+
+        if (!ip) {
+          showNotification("Error", "Enter IP address first", "error");
+          return;
+        }
+
+        showLoader();
+        statusDot.classList.remove("active");
+        statusText.innerText = "Stopping";
+
+        fetch(`http://${ip}/stop`)
+          .then((res) => res.text())
+          .then((data) => {
+            hideLoader();
+            showNotification("System Stopped", data);
+            statusText.innerText = "Stopped";
+          })
+          .catch((err) => {
+            hideLoader();
+            showNotification("Error", err, "error");
+            statusText.innerText = "Error";
+          });
+      }
+    </script>
+  </body>
+</html>
